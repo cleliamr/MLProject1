@@ -1,3 +1,16 @@
 # Ignore the entire dataset folder
 dataset/
 venv/
+
+# Processed data arrays (regenerate via run.ipynb)
+*.npy
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# IDE settings
+.idea/
