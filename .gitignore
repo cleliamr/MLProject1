@@ -1,4 +1,3 @@
 # Ignore the entire dataset folder
 dataset/
 venv/
-latex-example-paper/
