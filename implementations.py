@@ -167,7 +167,6 @@ def least_squares(y, tx):
     >>> least_squares(np.array([0.1,0.2]), np.array([[2.3, 3.2], [1., 0.1]]))
     (array([ 0.21212121, -0.12121212]), 8.666684749742561e-33)
     """
-    # ***************************************************
 
     ## from normal equation Aw = b (X^TXw = X^Ty), define A and b
     A = tx.T @ tx
@@ -197,9 +196,9 @@ def ridge_regression(y, tx, lambda_):
     Returns:
         w: optimal weights, numpy array of shape(D,), D is the number of features.
 
-    >>> ridge_regression(np.array([0.1,0.2]), np.array([[2.3, 3.2], [1., 0.1]]), 0)
+    >>> e.g. ridge_regression(np.array([0.1,0.2]), np.array([[2.3, 3.2], [1., 0.1]]), 0)
     array([ 0.21212121, -0.12121212])
-    >>> ridge_regression(np.array([0.1,0.2]), np.array([[2.3, 3.2], [1., 0.1]]), 1)
+    >>> e.g. ridge_regression(np.array([0.1,0.2]), np.array([[2.3, 3.2], [1., 0.1]]), 1)
     array([0.03947092, 0.00319628])
     
     """
@@ -223,7 +222,96 @@ def ridge_regression(y, tx, lambda_):
 
     return w
 
+
+### Sigmoid Function for Logistic Regression ###
+def sigmoid(t):
+    """Compute the sigmoid function."""
+    return 1 / (1 + np.exp(-t))
+    
+
+### Computing the loss for Logistic Regression ###
+def compute_loss_logistic(y, tx, w):
+    """Calculate the loss for logistic regression."""
+
+    predictions = sigmoid(tx.dot(w))
+
+    loss = -np.mean(y * np.log(predictions) + (1 - y) * np.log(1 - predictions))
+
+    return loss
+
+
 ### Logistic Regression ###
+def logistic_regression(y, tx, initial_w, max_iters, gamma):
+    """Logistic regression using gradient descent.
+
+    Args:
+        y: numpy array of shape=(N,)
+        tx: numpy array of shape=(N, D)
+        initial_w: numpy array of shape=(D,)
+        max_iters: number of gradient descent iterations
+        gamma: step size
+
+    Returns:
+        loss: final logistic loss
+        w: final weight vector
+    """
+
+    w = initial_w
+
+    for i in range(max_iters):
+
+        # compute predictions
+        predictions = sigmoid(tx @ w)
+
+        # compute gradient
+        gradient = (tx.T @ (predictions - y)) / len(y)
+
+        # update weights
+        w = w - gamma * gradient
+
+    # calculate final loss
+    loss = compute_loss_logistic(y, tx, w)
+
+    return loss, w
 
 
 ### Regularized Logistic Regression ###
+def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
+    """Regularized logistic regression using gradient descent.
+
+    Args:
+        y: numpy array of shape=(N,)
+        tx: numpy array of shape=(N, D)
+        lambda_: regularization parameter
+        initial_w: numpy array of shape=(D,)
+        max_iters: number of gradient descent iterations
+        gamma: step size
+
+    Returns:
+        loss: final regularized logistic loss
+        w: final weight vector
+    """
+
+    w = initial_w
+
+    for i in range(max_iters):
+
+        # Compute predictions
+        predictions = sigmoid(tx @ w)
+
+        # logistic regression gradient
+        gradient = (tx.T @ (predictions - y)) / len(y)
+
+        # Add regularization gradient
+        gradient += 2 * lambda_ * w
+
+        # update weights
+        w = w - gamma * gradient
+
+    # calculate final loss
+    loss = compute_loss_logistic(y, tx, w)
+
+    # add regularization term to loss
+    loss += lambda_ * np.sum(w**2)
+
+    return loss, w
