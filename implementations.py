@@ -1,4 +1,4 @@
-### Implementation of ML methods: mean squared error, least squares, ridge regression, logistic regression, and regularized logistic regression ###
+gi### Implementation of ML methods: mean squared error, least squares, ridge regression, logistic regression, and regularized logistic regression ###
 
 ### Mean Squared Error ###
 def calculate_mse(e):
