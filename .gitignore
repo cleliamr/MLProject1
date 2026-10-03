@@ -15,3 +15,5 @@ __pycache__/
 # IDE settings
 .idea/
 
+# Submission files (upload to the platform, not to git)
+submissions/
