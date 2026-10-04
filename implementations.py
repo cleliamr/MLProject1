@@ -5,7 +5,7 @@ import numpy as np
 ### Mean Squared Error ###
 def calculate_mse(e):
     """MSE with the 1/2 factor: 1/(2N) * sum(e^2)."""
-  
+
     return 1 / 2 * np.mean(e**2)
 
 
@@ -21,10 +21,11 @@ def compute_loss(y, tx, w):
     Returns:
         the value of the loss (a scalar), corresponding to the input parameters w.
     """
-    
+
     e = y - tx.dot(w)
-  
+
     return calculate_mse(e)
+
 
 ### Computing the Gradient ###
 def compute_gradient(y, tx, w):
@@ -38,36 +39,62 @@ def compute_gradient(y, tx, w):
     Returns:
         An numpy array of shape (2, ) (same shape as w), containing the gradient of the loss at w.
     """
-    
+
     err = y - tx.dot(w)
-  
+
     grad = -tx.T.dot(err) / len(err)
-  
+
     return grad
+
 
 ### Linear regression using gradient descent that only returns  last weight vector of the
 ### method and the corresponding loss value
 
-def mean_squared_error_gd(y, tx, initial_w, max_iters, gamma):
-        w = initial_w
-        for _ in range(max_iters):
-            w = w - gamma * compute_gradient(y, tx, w)
-        return w, compute_loss(y, tx, w)
 
+def mean_squared_error_gd(y, tx, initial_w, max_iters, gamma):
+    """Computes linear regression using gradient descent.
+    Args:
+        y: numpy array of shape=(N,), containing the target values
+        tx: numpy array of shape=(N, D), containing the input data
+        initial_w: numpy array of shape=(D,), initial weight vector
+        max_iters: integer, maximum number of gradient descent iterations
+        gamma: float, learning rate
+
+    Returns:
+        w: numpy array of shape=(D,), final weight vector.
+        loss: float, mean squared error corresponding to the final weights
+    """
+
+    w = initial_w
+    for _ in range(max_iters):
+        w = w - gamma * compute_gradient(y, tx, w)
+    return w, compute_loss(y, tx, w)
 
 
 ### Linear regression using stochastic gradient descent that only returns  last weight vector of the
 ### method and the corresponding loss value
 
+
 def mean_squared_error_sgd(y, tx, initial_w, max_iters, gamma):
+    """Computes linear regression using stochastic gradient descent.
+    Args:
+        y: numpy array of shape=(N,), containing the target values
+        tx: numpy array of shape=(N, D), containing the input data
+        initial_w: numpy array of shape=(D,), initial weight vector
+        max_iters: integer, maximum number of stochastic gradient descent iterations
+        gamma: float, learning rate
+
+     Returns:
+         w: numpy array of shape=(D,), final weight vector
+         loss: float, mean squared error corresponding to the final weights
+    """
     w = initial_w
     N = len(y)
     for _ in range(max_iters):
-        i = np.random.randint(N)             # batch size 1
-        grad = compute_gradient(y[i:i+1], tx[i:i+1], w)
+        i = np.random.randint(N)  # batch size 1
+        grad = compute_gradient(y[i : i + 1], tx[i : i + 1], w)
         w = w - gamma * grad
     return w, compute_loss(y, tx, w)
-
 
 
 def least_squares(y, tx):
@@ -96,7 +123,6 @@ def ridge_regression(y, tx, lambda_):
     return w, loss
 
 
-
 ### Sigmoid Function for Logistic Regression ###
 def sigmoid(t):
     """Numerically safe sigmoid."""
@@ -112,6 +138,7 @@ def compute_loss_logistic(y, tx, w):
 
 
 ### Logistic Regression ###
+
 
 def logistic_regression(y, tx, initial_w, max_iters, gamma):
     """Logistic regression using gradient descent.
@@ -184,17 +211,6 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
     # loss += lambda_ * np.sum(w**2)
 
     return w, loss
-
-
-
-
-
-
-
-
-
-
-
 
 
 '''
@@ -384,4 +400,3 @@ def compute_loss_logistic(y, tx, w):
 
     return loss
 '''
-
