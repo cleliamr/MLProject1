@@ -400,3 +400,101 @@ def compute_loss_logistic(y, tx, w):
 
     return loss
 '''
+
+# ---------------------------------------------------------------------------
+# Shared evaluation tools (used by all models)
+# ---------------------------------------------------------------------------
+
+# Splits into stratified folds, so each fold keeps the ~8.8% positive rate.
+def stratified_kfold_indices(y, k, seed=42):
+    """Return a list of k index arrays, each with the same class ratio as y."""
+    rng = np.random.RandomState(seed)
+    folds = [[] for _ in range(k)]
+    for c in np.unique(y):
+        idx = np.where(y == c)[0]
+        rng.shuffle(idx)
+        for i, part in enumerate(np.array_split(idx, k)):
+            folds[i].append(part)
+    return [np.concatenate(f) for f in folds]
+
+
+# Precision, recall and F1 for the positive class (heart attack).
+# F1 is used for all decisions; precision and recall are only for diagnosis/reporting.
+def classification_scores(y_true, y_pred):
+    """Return (precision, recall, f1) for labels in {0, 1}, positive class = 1."""
+
+    # 1. Count true positives, false positives and false negatives
+    tp = np.sum((y_pred == 1) & (y_true == 1))
+    fp = np.sum((y_pred == 1) & (y_true == 0))
+    fn = np.sum((y_pred == 0) & (y_true == 1))
+
+    # 2. Precision: among predicted positives, how many are real positives
+    precision = tp / (tp + fp) if tp + fp > 0 else 0.0
+
+    # 3. Recall: among real positives, how many we detected
+    recall = tp / (tp + fn) if tp + fn > 0 else 0.0
+
+    # 4. F1: harmonic mean of precision and recall
+    f1 = 2 * precision * recall / (precision + recall) if precision + recall > 0 else 0.0
+
+    return precision, recall, f1
+
+
+
+# Generic k-fold cross-validation, used for all models.
+# Only the training and the scoring depend on the model,
+# so they are passed as functions: train_fn and score_fn.
+def cross_validate(train_fn, score_fn, x, y01, thresholds, k=5, seed=42):
+    """Stratified k-fold cross-validation for any model.
+
+    train_fn(x_tr, y_tr, fold) -> model   : trains the model on the training rows
+    score_fn(model, x_val)     -> scores  : one score per validation row
+                                            (probability or raw score)
+
+    The best threshold is chosen on the mean F1 only.
+    Precision and recall are reported at that threshold (for diagnosis).
+    Returns (best_threshold, mean [P, R, F1], std [P, R, F1]) over the folds."""
+
+    # 1. Split row indices into k folds, each with the same % of positives
+    folds = stratified_kfold_indices(y01, k, seed)
+
+    # 2. Table to fill in: one row per fold, one column per threshold,
+    #    and 3 values per cell: precision, recall, F1
+    results = np.zeros((k, len(thresholds), 3))
+
+    for i in range(k):
+        # 3. Fold i is the validation set, the other k-1 folds are for training
+        val_idx = folds[i]
+        tr_idx = np.concatenate([folds[j] for j in range(k) if j != i])
+
+        # 4. Train the model on the training rows only (model-specific)
+        model = train_fn(x[tr_idx], y01[tr_idx], i)
+
+        # 5. Predict a score for each validation row (model-specific)
+        scores = score_fn(model, x[val_idx])
+
+        # 6. For each threshold, turn scores into classes (1 if score > t)
+        #    and compare with the true validation labels: precision, recall, F1
+        for t_i, t in enumerate(thresholds):
+            y_pred = (scores > t).astype(int)
+            results[i, t_i] = classification_scores(y01[val_idx], y_pred)
+
+        print("fold", i, "done")
+
+    # 7. Average F1 over the folds and pick the threshold with the highest mean F1
+    best = np.argmax(results[:, :, 2].mean(axis=0))
+
+    # 8. Mean and std over the folds of precision, recall and F1 at that threshold
+    mean = results[:, best].mean(axis=0)
+    std = results[:, best].std(axis=0)
+    print(f"best threshold {thresholds[best]:.2f} | "
+          f"F1 {mean[2]:.4f} ± {std[2]:.4f} | "
+          f"P {mean[0]:.4f} ± {std[0]:.4f} | "
+          f"R {mean[1]:.4f} ± {std[1]:.4f}")
+
+    return thresholds[best], mean, std
+
+
+def best_f1(scores, y_true, thresholds):
+    """Highest F1 over the threshold grid for one set of scores."""
+    return max(classification_scores(y_true, (scores > t).astype(int))[2] for t in thresholds)
