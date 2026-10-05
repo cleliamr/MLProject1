@@ -498,3 +498,88 @@ def cross_validate(train_fn, score_fn, x, y01, thresholds, k=5, seed=42):
 def best_f1(scores, y_true, thresholds):
     """Highest F1 over the threshold grid for one set of scores."""
     return max(classification_scores(y_true, (scores > t).astype(int))[2] for t in thresholds)
+
+
+## Decision Tree & Random Forest
+def make_edges(x, n_bins=32):
+    """Per feature: candidate thresholds from quantiles of the TRAIN data."""
+    qs = np.linspace(0, 1, n_bins + 1)[1:-1]
+    return [np.unique(np.quantile(x[:, j], qs)) for j in range(x.shape[1])]
+
+def bin_data(x, edges):
+    """Integer bin per value: bin <= b  <=>  value <= edges[b]."""
+    B = np.empty(x.shape, dtype=np.int16)
+    for j, e in enumerate(edges):
+        B[:, j] = np.searchsorted(e, x[:, j], side="left")
+    return B
+def best_split(B, y, idx, n_bins, min_leaf, features=None):
+    """Find the (feature, bin) with the lowest weighted Gini over rows idx.
+        features: columns to consider (random forest: random subset);
+        None = all columns (single tree)."""
+    n, P = len(idx), y[idx].sum()
+    best = (None, None, np.inf)
+    if features is None:
+        features = range(B.shape[1])
+    for j in features:
+        b = B[idx, j]
+        cnt = np.bincount(b, minlength=n_bins)
+        pos = np.bincount(b, weights=y[idx], minlength=n_bins)
+        cl, pl = np.cumsum(cnt)[:-1], np.cumsum(pos)[:-1]  # left side if x <= edge
+        cr, pr = n - cl, P - pl
+        ok = (cl >= min_leaf) & (cr >= min_leaf)
+        if not ok.any():
+            continue
+        # weighted Gini: sum over sides of 2 * p * (c - p) / c
+        imp = np.full(len(cl), np.inf)
+        imp[ok] = 2 * pl[ok] * (cl[ok] - pl[ok]) / cl[ok] + 2 * pr[ok] * (cr[ok] - pr[ok]) / cr[ok]
+        k = np.argmin(imp)
+        if imp[k] < best[2]:
+            best = (j, k, imp[k])
+    return best
+
+
+def build_tree(B, y, idx, n_bins, depth, max_depth, min_leaf,max_features=None, rng=None):
+    """Recursively build a tree on rows idx.
+    Leaf value = fraction of positives.max_features,
+    rng: only for random forest (random feature subset at each split);
+    with the defaults (None) this is the single decision tree."""
+    p = y[idx].mean()  # leaf value = fraction of positives
+    if depth == max_depth or p in (0.0, 1.0) or len(idx)< 2 * min_leaf:
+        return p
+    features = None if max_features is None else rng.choice(B.shape[1], max_features,replace=False)
+    j, k, _ = best_split(B, y, idx, n_bins, min_leaf, features)
+    if j is None:
+        return p
+    left = B[idx, j] <= k
+    return (j,k,
+            build_tree(B, y, idx[left], n_bins, depth + 1, max_depth, min_leaf, max_features, rng),
+            build_tree(B, y, idx[~left],n_bins, depth + 1, max_depth, min_leaf, max_features, rng))
+
+def predict_tree(node, B, idx=None, out=None):
+    """Probability (leaf fraction) for every row of B."""
+    if out is None:
+        out, idx = np.zeros(len(B)), np.arange(len(B))
+    if not isinstance(node, tuple):
+        out[idx] = node
+        return out
+    j, k, l, r = node
+    go_left = B[idx, j] <= k
+    predict_tree(l, B, idx[go_left],out)
+    predict_tree(r, B, idx[~go_left], out)
+    return out
+
+def build_forest(B, y, n_trees, n_bins, max_depth, min_leaf, max_features, seed):
+    """Train n_trees trees, each on a bootstrap sample of the rows (drawn with replacement)
+    and with a random subset of max_features features at each split."""
+    rng = np.random.RandomState(seed)
+    n = len(y)
+    forest = []
+    for t in range(n_trees):
+        idx = rng.randint(0, n, n)        # bootstrap sample: n rows drawn with replacement
+        forest.append(build_tree(B, y, idx, n_bins, 0, max_depth, min_leaf, max_features, rng))
+    return forest
+
+def predict_forest(forest, B):
+    """Average of the leaf probabilities of all trees, for every row of B."""
+    return np.mean([predict_tree(tree, B) for tree in forest], axis=0)
+
