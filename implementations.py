@@ -104,7 +104,10 @@ def least_squares(y, tx):
         w: shape (D,)
         loss: scalar, MSE with the 1/2 factor
     """
-    w = np.linalg.solve(tx.T @ tx, tx.T @ y)
+    try:
+        w = np.linalg.solve(tx.T @ tx, tx.T @ y)
+    except np.linalg.LinAlgError:
+        w = np.linalg.lstsq(tx, y, rcond=None)[0]
     loss = 0.5 * np.mean((y - tx @ w) ** 2)
     return w, loss
 
@@ -187,8 +190,8 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         gamma: step size
 
     Returns:
-        loss: final regularized logistic loss
         w: final weight vector
+        loss: final regularized logistic loss
     """
 
     w = initial_w
