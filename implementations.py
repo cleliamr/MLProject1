@@ -151,9 +151,8 @@ def logistic_regression(y, tx, initial_w, max_iters, gamma):
         gamma: step size
 
     Returns:
-        w: final weight vector
         loss: final logistic loss
-
+        w: final weight vector
     """
 
     w = initial_w
@@ -188,8 +187,8 @@ def reg_logistic_regression(y, tx, lambda_, initial_w, max_iters, gamma):
         gamma: step size
 
     Returns:
-        w: final weight vector
         loss: final regularized logistic loss
+        w: final weight vector
     """
 
     w = initial_w
