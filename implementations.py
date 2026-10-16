@@ -492,8 +492,8 @@ def cross_validate(train_fn, score_fn, x, y01, thresholds, k=5, seed=42):
     std = results[:, best].std(axis=0)
     print(f"best threshold {thresholds[best]:.2f} | "
           f"F1 {mean[2]:.4f} ± {std[2]:.4f} | "
-          f"P {mean[0]:.4f} ± {std[0]:.4f} | "
-          f"R {mean[1]:.4f} ± {std[1]:.4f}")
+          f"Precision {mean[0]:.4f} ± {std[0]:.4f} | "
+          f"Recall {mean[1]:.4f} ± {std[1]:.4f}")
 
     return thresholds[best], mean, std
 
@@ -585,4 +585,139 @@ def build_forest(B, y, n_trees, n_bins, max_depth, min_leaf, max_features, seed)
 def predict_forest(forest, B):
     """Average of the leaf probabilities of all trees, for every row of B."""
     return np.mean([predict_tree(tree, B) for tree in forest], axis=0)
+
+
+
+def linear_svm(
+        x,
+        y,
+        lambda_=1e-4,
+        learning_rate=1e-2,
+        epochs=10,
+        batch_size=256,
+        class_weight=True,
+        seed=42
+):
+    """
+    Train a linear SVM using mini-batch SGD.
+
+    Parameters
+    x : array-like, shape (N, D)
+        Standardized training features.
+    y : array-like, shape (N,)
+        Binary labels in {0, 1}.
+    lambda_ : float
+        L2 regularization strength.
+    learning_rate : float
+        SGD learning rate.
+    epochs : int
+        Number of passes through the training data.
+    batch_size : int
+        Number of observations per mini-batch.
+    class_weight : bool
+        If True, give more weight to the minority class.
+    seed : int
+        Random seed.
+
+    Returns
+    w : array, shape (D,)
+        Learned weights.
+
+    b : float
+        Learned intercept.
+    """
+
+    rng = np.random.default_rng(seed)
+
+    x = np.asarray(x, dtype=float)
+    # ensure shape (N,)
+    y = np.asarray(y).reshape(-1)
+
+    N, D = x.shape
+
+    # convert labels from 0,1 to -1, +1
+    y_svm = 2 * y - 1
+
+    # initialize weights and intercept
+    w = np.zeros(D)
+    b = 0.0
+
+    # Calculate class weights
+    n_negative = np.sum(y == 0)
+    n_positive = np.sum(y == 1)
+
+    # calculate class weights
+    if class_weight:
+        weight_negative = N / (2 * n_negative)
+        weight_positive = N / (2 * n_positive)
+
+    else:
+        weight_negative = 1.0
+        weight_positive = 1.0
+
+    # do mini-batch SGD
+    for epoch in range(epochs):
+
+        # Shuffle the training observations
+        indices = rng.permutation(N)
+
+        x_shuffled = x[indices]
+        y_shuffled = y_svm[indices]
+
+        # Loop through mini-batches
+        for start in range(0, N, batch_size):
+
+            end = min(start + batch_size, N)
+
+            x_batch = x_shuffled[start:end]
+            y_batch = y_shuffled[start:end]
+
+            # calculate SVM scores
+            scores = x_batch @ w + b
+
+            # calculate margins
+            margins = y_batch * scores
+
+            # find observations violating margings
+            violating = margins < 1
+
+            # Initialize hinge-loss gradients
+            gradient_w_hinge = np.zeros(D)
+            gradient_b_hinge = 0.0
+
+            if np.any(violating):
+                x_violate = x_batch[violating]
+                y_violate = y_batch[violating]
+
+                # Give the minority class more weight
+                weights = np.where(
+                    y_violate == 1,
+                    weight_positive,
+                    weight_negative
+                )
+
+                n_batch = len(y_batch)
+
+                # gradient of weighted hinge loss
+                # dividing by FULL mini batch, not just the number of margin violations
+                gradient_w_hinge = -np.sum(
+                    (weights * y_violate)[:, None] * x_violate,
+                    axis=0
+                ) / n_batch
+
+                gradient_b_hinge = -np.sum(
+                    weights * y_violate
+                ) / n_batch
+
+            # add L2 regularization
+            # regularization is outside the conditional!
+            gradient_w = gradient_w_hinge + lambda_ * w
+
+            gradient_b = gradient_b_hinge
+
+            # update parameters
+            w -= learning_rate * gradient_w
+            b -= learning_rate * gradient_b
+
+    return w, b
 
