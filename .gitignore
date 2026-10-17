@@ -17,3 +17,5 @@ __pycache__/
 
 # Submission files (upload to the platform, not to git)
 submissions/
+
+.DS_Store
